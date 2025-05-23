@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+aio_pika
+pika
+pydantic
+requests

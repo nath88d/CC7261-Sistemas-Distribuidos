@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Menu</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Olá, <span id="usuarioNome"></span>!</h1>
+
+        <div class="tabs">
+            <button onclick="mostrarAba('postagens')">Postagens</button>
+            <button onclick="mostrarAba('mensagem')">Nova Mensagem</button>
+            <button onclick="mostrarAba('conversas')">Conversas</button>
+        </div>
+
+        <form id="seguirForm">
+            <input type="text" id="seguirNome" placeholder="Nome do usuário a seguir" required>
+            <button type="submit">Seguir</button>
+        </form>
+
+        <div class="aba" id="aba-postagens">
+            <h2>Postar</h2>
+            <form id="postForm">
+                <textarea id="textoPost" placeholder="Escreva algo..."></textarea>
+                <button type="submit">Postar</button>
+            </form>
+
+            <h2>Postagens Recentes</h2>
+            <ul id="postagensLista"></ul>
+        </div>
+
+        <div class="aba" id="aba-mensagem" style="display: none;">
+            <h2>Mensagem Privada</h2>
+            <form id="mensagemForm">
+                <input type="text" id="destinatario" placeholder="Nome do destinatário" required>
+                <textarea id="textoMsg" placeholder="Sua mensagem..." required></textarea>
+                <button type="submit">Enviar</button>
+            </form>
+        </div>
+
+        <div class="aba" id="aba-conversas" style="display: none;">
+            <h2>Suas Conversas</h2>
+            <div id="listaConversas"></div>
+            <h3 id="tituloConversa"></h3>
+            <ul id="historicoConversa"></ul>
+        </div>
+    </div>
+
+    <script src="storage.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const nomeLogado = getUsuarioLogado();
+            if (!nomeLogado) {
+                window.location.href = "index.html";
+                return;
+            }
+
+            document.getElementById('usuarioNome').textContent = nomeLogado;
+
+            const usuariosRes = await fetch('http://127.0.0.1:8000/usuarios/');
+            const usuarios = await usuariosRes.json();
+            const usuarioLogado = usuarios.find(u => u.nome === nomeLogado);
+            const usuarioId = usuarioLogado ? usuarioLogado.nome : "Desconhecido";
+
+            window.usuarioId = usuarioId;
+            carregarPostagens();
+        });
+
+        function mostrarAba(nome) {
+            document.querySelectorAll('.aba').forEach(div => div.style.display = 'none');
+            document.getElementById(`aba-${nome}`).style.display = 'block';
+
+            if (nome === 'conversas') carregarConversas();
+        }
+
+        async function carregarPostagens() {
+    try {
+        const res = await fetch('http://127.0.0.1:8000/postagens/');
+        if (!res.ok) throw new Error("Erro ao buscar postagens");
+        const postagens = await res.json();
+
+        const nomeLogado = getUsuarioLogado();
+
+        const usuariosRes = await fetch('http://127.0.0.1:8000/usuarios/');
+        const usuarios = await usuariosRes.json();
+        const usuarioLogado = usuarios.find(u => u.nome === nomeLogado);
+
+        if (!usuarioLogado) {
+            alert("Usuário não encontrado. Faça login novamente.");
+            localStorage.removeItem("usuarioLogado");
+            window.location.href = "index.html";
+            return;
+        }
+
+        const seguindo = new Set(usuarioLogado.seguindo);
+
+const postagensOrdenadas = postagens.flatMap(u =>
+    u.postagens.map(p => ({ ...p, usuario_id: u.usuario }))
+).sort((a, b) => {
+    const seguiuA = seguindo.has(a.usuario_id);
+    const seguiuB = seguindo.has(b.usuario_id);
+    if (seguiuA && !seguiuB) return -1;
+    if (!seguiuA && seguiuB) return 1;
+    return new Date(b.timestamp) - new Date(a.timestamp);
+});
+
+
+        const ul = document.getElementById('postagensLista');
+        ul.innerHTML = "";
+        postagensOrdenadas.forEach(p => {
+            const li = document.createElement('li');
+            li.textContent = `${p.usuario_id}: ${p.texto} - ${new Date(p.timestamp).toLocaleString()}`;
+            ul.appendChild(li);
+        });
+    } catch (err) {
+        console.error("Erro ao carregar postagens:", err);
+        alert("Não foi possível carregar as postagens. Verifique a conexão ou o backend.");
+    }
+}
+
+
+        document.getElementById('postForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const texto = document.getElementById('textoPost').value;
+            const usuarioId = window.usuarioId;
+
+            await fetch('http://127.0.0.1:8000/postagens/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ usuario_id: usuarioId, texto })
+            });
+
+            document.getElementById('textoPost').value = "";
+            carregarPostagens();
+        });
+
+        document.getElementById('mensagemForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const para = document.getElementById('destinatario').value;
+            const texto = document.getElementById('textoMsg').value;
+            const de = getUsuarioLogado();
+
+            await fetch('http://127.0.0.1:8000/mensagens/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ de, para, texto })
+            });
+
+            alert("Mensagem enviada!");
+            document.getElementById('textoMsg').value = "";
+        });
+
+        async function carregarConversas() {
+            const res = await fetch('http://127.0.0.1:8000/mensagens/');
+            const todasMensagens = await res.json();
+
+            const nomeLogado = getUsuarioLogado();
+
+            const minhasMensagens = todasMensagens.filter(m =>
+                m.de === nomeLogado || m.para === nomeLogado
+            );
+
+            const contatos = new Set();
+            minhasMensagens.forEach(m => {
+                const outro = m.de === nomeLogado ? m.para : m.de;
+                contatos.add(outro);
+            });
+
+            const lista = document.getElementById('listaConversas');
+            lista.innerHTML = "";
+
+            contatos.forEach(nomeContato => {
+                const btn = document.createElement('button');
+                btn.textContent = `Ver conversa com ${nomeContato}`;
+                btn.onclick = () => mostrarHistorico(nomeContato, minhasMensagens);
+                lista.appendChild(btn);
+            });
+        }
+
+        function mostrarHistorico(contato, mensagens) {
+            const nome = getUsuarioLogado();
+            const ul = document.getElementById('historicoConversa');
+            const titulo = document.getElementById('tituloConversa');
+            titulo.textContent = `Conversa com ${contato}`;
+            ul.innerHTML = "";
+
+            const historico = mensagens.filter(m =>
+                (m.de === nome && m.para === contato) ||
+                (m.de === contato && m.para === nome)
+            );
+
+            historico.forEach(m => {
+                const li = document.createElement('li');
+                li.textContent = `${m.de}: ${m.texto}`;
+                ul.appendChild(li);
+            });
+        }
+
+        document.getElementById('seguirForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const seguirNome = document.getElementById('seguirNome').value;
+            const meuNome = getUsuarioLogado();
+
+            const res = await fetch(`http://127.0.0.1:8000/seguir/?usuario_a=${meuNome}&usuario_b=${seguirNome}`, {
+                method: 'POST'
+            });
+
+            if (res.ok) {
+                alert(`Agora você segue ${seguirNome}`);
+                document.getElementById('seguirNome').value = "";
+                carregarPostagens();
+            } else {
+                alert("Erro ao seguir.");
+            }
+        });
+    </script>
+</body>
+</html>

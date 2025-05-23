@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Login / Cadastro</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Bem-vindo à Rede Social</h1>
+
+        <h2>Cadastro</h2>
+        <form id="cadastroForm">
+            <input type="text" id="nome" placeholder="Nome de usuário" required>
+            <button type="submit">Cadastrar</button>
+        </form>
+
+        <h2>Login</h2>
+        <form id="loginForm">
+            <input type="text" id="loginNome" placeholder="Nome de usuário" required>
+            <button type="submit">Entrar</button>
+        </form>
+    </div>
+
+    <script src="storage.js"></script>
+    <script>
+        document.getElementById('cadastroForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const nome = document.getElementById('nome').value;
+
+            const res = await fetch('http://127.0.0.1:8000/usuarios/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nome })
+            });
+            console.log("Resposta: ",res);
+
+            if (res.ok) {
+                salvarUsuarioLogado(nome); // Armazena apenas o nome do usuário
+                window.location.href = "menu.html";
+            } else {
+                alert("Erro ao cadastrar.");
+            }
+        });
+
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const nome = document.getElementById('loginNome').value;
+
+            const res = await fetch('http://127.0.0.1:8000/usuarios/');
+            const usuarios = await res.json();
+            console.log("RESPOSTA: ", res)
+            console.log("USUARIOS: ",usuarios)
+            const encontrado = usuarios.find(u => u.nome === nome);
+
+            if (encontrado) {
+                salvarUsuarioLogado(nome); // Armazena o nome do usuário logado
+                window.location.href = "menu.html";
+            } else {
+                alert("Usuário não encontrado.");
+            }
+        });
+    </script>
+</body>
+</html>

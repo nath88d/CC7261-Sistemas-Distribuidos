@@ -1,0 +1,56 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_LOGS: "-"
+      RABBITMQ_LOG_LEVEL: none
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - rabbitmq
+
+  servidor1:
+    build: ./servidor
+    environment:
+      - SERVER_ID=1
+    depends_on:
+      - rabbitmq
+    # volumes:
+      # - dados_local:/app
+
+  servidor2:
+    build: ./servidor
+    environment:
+      - SERVER_ID=2
+    depends_on:
+      - rabbitmq
+    # volumes:
+      # - dados_local:/app
+  servidor3:
+    build: ./servidor
+    environment:
+      - SERVER_ID=3
+    depends_on:
+      - rabbitmq
+    # volumes:
+      # - dados_local:/app
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  dados_local:
